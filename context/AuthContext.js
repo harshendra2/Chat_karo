@@ -8,21 +8,14 @@ const AuthContext = createContext({
 });
 
 const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   
   useEffect(() => {
-    localStorage.getItem("isAuthenticated");
     const getCookies = Cookies.get("currentUser");
-    if (getCookies) {
-      setIsAuthenticated("true");
+    if (!getCookies) {
+      setIsAuthenticated(false);
     }
-    localStorage.removeItem("isAuthenticated");
-    localStorage.removeItem("username");
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem("isAuthenticated", isAuthenticated);
-  }, [isAuthenticated]);
 
   return (
     <AuthContext.Provider value={{ isAuthenticated, setIsAuthenticated }}>

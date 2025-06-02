@@ -3,7 +3,7 @@ import OIP from "../../assets/OIP.png"
 
 export default function RightBar() {
     return(
-        <div className="h-screen ml-2 w-[79%] flex items-center justify-center bg-transparent shadow-[inset_0_0_20px_2px_rgba(255,255,255,0.3)]">
+        <div className="h-screen ml-3 mt-2 mb-2 w-[98%] flex items-center justify-center bg-transparent shadow-[inset_0_0_20px_2px_rgba(255,255,255,0.3)]">
             <div className="flex flex-col items-center gap-2 w-full max-w-2xl px-4">
                 <div className="relative w-full max-w-xs h-70">
                     <Image 

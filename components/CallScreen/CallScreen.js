@@ -1,149 +1,358 @@
 "use client";
 import { useEffect, useState, useContext, useRef } from "react";
-import {
-  FaMicrophone,
-  FaMicrophoneSlash,
-  FaVideo,
-  FaVideoSlash,
-  FaPhoneSlash,
-  FaDesktop,
-  FaStop,
-} from "react-icons/fa";
-import AIAvathar from "./AIAvathar";
+import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash } from "react-icons/fa";
+import Cookies from "js-cookie";
 import { PageContext } from "../../context/PageContext";
+import Axios from 'axios';
+import BaseUrl from '../../Service/BaseUrl';
+import io from 'socket.io-client';
+
+const socket = io('http://localhost:4000');
 
 export default function CallScreen() {
-  const { setPage } = useContext(PageContext);
+  const { 
+    setPage, 
+    inCommingCallId, 
+    callRemoteUserId,
+    isCaller
+  } = useContext(PageContext);
+  const [state,setState]=useState(null)
   const [isMuted, setIsMuted] = useState(false);
   const [videoOn, setVideoOn] = useState(true);
-  const [screenSharing, setScreenSharing] = useState(false);
-  const [screenHeight, setScreenHeight] = useState("100vh");
-  const [isCalling, setIsCalling] = useState(false);
+  const [callStatus, setCallStatus] = useState('connecting');
+  const [interactionDone, setInteractionDone] = useState(false);
+  const [ringtonePlaying, setRingtonePlaying] = useState(false);
+  
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  const pcRef = useRef(null);
   const ringtoneRef = useRef(null);
+  const localStreamRef = useRef(null);
+  const isMountedRef = useRef(true); 
   const callTimeoutRef = useRef(null);
+  
+  const currentUserId = Cookies.get("UserId");
+  const safePlay = (element) => {
+    if (!element) return;
+    element.play().catch(error => {
+      if (error.name === 'AbortError' || 
+          error.message.includes('interrupted by a new load request') ||
+          error.message.includes('request was interrupted')) {
+        return;
+      }
+      console.error('Error playing video:', error);
+    });
+  };
 
-  const toggleAudio = () => setIsMuted((prev) => !prev);
-  const toggleVideo = () => setVideoOn((prev) => !prev);
-  const toggleScreenShare = () => setScreenSharing((prev) => !prev);
-
-
-  useEffect(() => {
-    const updateHeight = () => {
-      setScreenHeight(window.innerHeight + "px");
-    };
-    updateHeight();
-    window.addEventListener("resize", updateHeight);
-    return () => window.removeEventListener("resize", updateHeight);
-  }, []);
-
-
-  const playRingtone = () => {
-    if (!ringtoneRef.current) {
+  const startRingtone = () => {
+    if (!ringtoneRef.current && interactionDone) {
       ringtoneRef.current = new Audio("/ringtone-126505.mp3");
       ringtoneRef.current.loop = true;
+      ringtoneRef.current.play().catch(e => console.error("Ringtone error:", e));
+      setRingtonePlaying(true);
     }
-    ringtoneRef.current.play().catch((e) => console.error("Ringtone error:", e));
   };
 
   const stopRingtone = () => {
     if (ringtoneRef.current) {
       ringtoneRef.current.pause();
       ringtoneRef.current.currentTime = 0;
+      ringtoneRef.current = null;
+      setRingtonePlaying(false);
     }
   };
 
-  const disconnect = () => {
-      stopRingtone();
-      setIsCalling(false);
-    setPage((prev) => !prev);
-  };
+ const stopMediaTracks = () => {
+  if (localStreamRef.current) {
+    localStreamRef.current.getTracks().forEach(track => {
+      track.stop();
+    });
+    localStreamRef.current = null;
+  }
 
-  const handleVideoCall = () => {
-    setIsCalling(true);
-    playRingtone();
+  if (localVideoRef.current) {
+    localVideoRef.current.srcObject = null;
+  }
 
-    callTimeoutRef.current = setTimeout(() => {
-      stopRingtone();
-      setIsCalling(false);
-      disconnect();
-    }, 10000); 
-  };
+  if (remoteVideoRef.current) {
+    remoteVideoRef.current.srcObject = null;
+  }
+};
+
 
   useEffect(() => {
-    handleVideoCall();
-    return () => clearTimeout(callTimeoutRef.current);
-  }, []);
+    isMountedRef.current = true;
+
+    if (!inCommingCallId) return;
+
+    const initCall = async () => {
+      try {
+
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: true 
+        });
+        
+        localStreamRef.current = stream;
+        
+        if (localVideoRef.current && isMountedRef.current) {
+          localVideoRef.current.srcObject = stream;
+          safePlay(localVideoRef.current);
+        }
+
+        const pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+        pcRef.current = pc;
+
+        stream.getTracks().forEach(track => {
+          pc.addTrack(track, stream);
+        });
+
+        pc.onicecandidate = ({ candidate }) => {
+          if (candidate) {
+            socket.emit('webrtc-signal', {
+              callId: inCommingCallId,
+              signal: { type: 'candidate', candidate },
+              targetId: callRemoteUserId
+            });
+          }
+        };
+
+        pc.ontrack = (event) => {
+          if (remoteVideoRef.current && isMountedRef.current) {
+            remoteVideoRef.current.srcObject = event.streams[0];
+            safePlay(remoteVideoRef.current);
+            setCallStatus('connected');
+            stopRingtone();
+            clearTimeout(callTimeoutRef.current); 
+          }
+
+        };
+
+        const handleSignal = async ({ signal }) => {
+          if (!pcRef.current || !isMountedRef.current) return;
+          
+          try {
+            if (signal.type === 'offer') {
+              await pcRef.current.setRemoteDescription(signal);
+              const answer = await pcRef.current.createAnswer();
+              await pcRef.current.setLocalDescription(answer);
+              
+              socket.emit('webrtc-signal', {
+                callId: inCommingCallId,
+                signal: { type: 'answer', answer },
+                targetId: callRemoteUserId
+              });
+            } 
+            else if (signal.type === 'answer') {
+              await pcRef.current.setRemoteDescription(signal);
+            } 
+            else if (signal.candidate) {
+              await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            }
+          } catch (err) {
+            console.error("Signal handling error:", err);
+          }
+        };
+
+        socket.on('webrtc-signal', handleSignal);
+
+        const handleCallEnd = () => {
+          endCall();
+        };
+        socket.on('end-call', handleCallEnd);
+
+        if (isCaller) {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          
+          socket.emit('webrtc-signal', {
+            callId: inCommingCallId,
+            signal: { type: 'offer', offer },
+            targetId: callRemoteUserId
+          });
+          
+          if (interactionDone) startRingtone();
+        }
+
+      } catch (error) {
+        console.error('Call setup failed:', error);
+        if (isMountedRef.current) setCallStatus('failed');
+        stopRingtone();
+        stopMediaTracks();
+      }
+    };
+
+    initCall();
+
+callTimeoutRef.current = setTimeout(() => {
+  if (callStatus !== 'connected') {
+    endCall(); 
+  }
+}, 60000);
+
+
+    return () => {
+      isMountedRef.current = false;
+
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
+
+      socket.off('webrtc-signal');
+      socket.off('end-call');
+
+      stopRingtone();
+      stopMediaTracks();
+      clearTimeout(callTimeoutRef.current);
+    };
+  }, [inCommingCallId, callRemoteUserId, isCaller, interactionDone]);
+
+  const handleInteraction = () => {
+    if (!interactionDone) {
+      setInteractionDone(true);
+      if (isCaller) startRingtone();
+    }
+  };
+
+  const toggleAudio = () => {
+    setIsMuted(!isMuted);
+    if (localStreamRef.current) {
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      audioTracks.forEach(track => track.enabled = !isMuted);
+    }
+  };
+
+  const toggleVideo = () => {
+    setVideoOn(!videoOn);
+    if (localStreamRef.current) {
+      const videoTracks = localStreamRef.current.getVideoTracks();
+      videoTracks.forEach(track => track.enabled = !videoOn);
+    }
+  };
+
+
+
+  const endCall = () => {
+  if (!isMountedRef.current) return;
+
+  clearTimeout(callTimeoutRef.current); 
+
+  socket.emit('end-call', { 
+    callId: inCommingCallId,
+    targetId: callRemoteUserId 
+  });
+
+
+  stopRingtone();
+  stopMediaTracks();
+
+  if (pcRef.current) {
+    pcRef.current.close();
+    pcRef.current = null;
+  }
+  setPage(true); 
+};
+
+
+  useEffect(() => {
+    if (!callRemoteUserId) return;
+
+    const GetDetails = async () => {
+      try {
+        const response = await Axios.get(
+          `${BaseUrl}Sender/details/${callRemoteUserId}`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${Cookies.get('currentUser')}`,
+            },
+          }
+        );
+        if (response.status === 200 || response.status === 201) {
+          setState(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching details:', error);
+      }
+    };
+
+    GetDetails();
+  }, [callRemoteUserId]);
 
   return (
-    <div
-      className="w-full bg-black text-white flex flex-col relative"
-      style={{ height: screenHeight }}
+    <div 
+      className="w-full h-screen bg-black text-white flex flex-col relative"
+       onClick={handleInteraction}
     >
-      {/* Calling Animation */}
-      {isCalling && (
+      {/* Main video */}
+      <video
+        ref={remoteVideoRef}
+        className="w-full h-full object-cover"
+        autoPlay
+        playsInline
+      />
+      
+      {/* Status indicator */}
+      {callStatus !== 'connected' && (
         <div className="absolute top-4 right-4 text-white bg-black/50 px-4 py-2 rounded shadow flex items-center gap-2">
-          <FaPhoneSlash className="text-green-400 animate-ping" />
-          <span className="text-sm font-semibold animate-pulse">Calling...</span>
+          <span className="text-sm font-semibold animate-pulse">
+            {callStatus === 'connecting' ? 'Connecting...' : 'Call Failed'}
+          </span>
         </div>
       )}
 
-      <AIAvathar />
-
-      {/* Main video section */}
-      <div className="flex-1 relative">
-        <video
-          className="w-full h-full max-w-[90%] object-cover"
-          autoPlay
-          muted
-        />
-        <p className="absolute top-2 left-2 md:top-4 md:left-4 text-sm md:text-lg font-semibold bg-black/50 px-2 md:px-4 py-1 rounded">
-          Receiver (Harshendra Raj PN)
-        </p>
-
-        {/* Caller preview */}
-        <div className="absolute bottom-28 right-4 w-32 h-24 md:w-48 md:h-32 rounded-lg overflow-hidden shadow-lg border-2 border-white">
-          <video className="w-full h-full object-cover" autoPlay muted />
-        </div>
-
-        {/* Screen sharing preview */}
-        {screenSharing && (
-          <div className="absolute top-2 right-2 w-[90%] sm:w-[400px] h-[200px] sm:h-[250px] border-2 border-green-500 bg-black">
-            <p className="text-xs sm:text-sm text-white text-center mt-1 sm:mt-2">
-              Screen Sharing
-            </p>
-            <video className="w-full h-full object-cover" autoPlay muted />
+      {/* Interaction prompt */}
+      {!interactionDone && isCaller && (
+        <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
+          <div className="text-center p-6 bg-black/50 rounded-lg">
+            <p className="text-xl mb-4">Tap anywhere to enable sound</p>
+            <p className="text-yellow-400 animate-pulse">Calling to {state?.name}...</p>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Ringtone indicator */}
+      {ringtonePlaying && (
+        <div className="absolute top-4 left-4 text-white bg-black/50 px-4 py-2 rounded shadow flex items-center gap-2">
+          <span className="text-sm font-semibold animate-pulse">Ringing...</span>
+        </div>
+      )}
+
+      {/* Local preview */}
+      <div className="absolute bottom-28 right-4 w-32 h-24 md:w-48 md:h-32 rounded-lg overflow-hidden shadow-lg border-2 border-white bg-black">
+        <video 
+          ref={localVideoRef}
+          className="w-full h-full object-cover" 
+          autoPlay 
+          muted
+          playsInline
+        />
       </div>
 
-      {/* Control buttons */}
-      <div className="bg-black/30 p-2 sm:p-4 flex flex-wrap justify-center gap-4 sm:gap-6 items-center border-t border-white/10">
+      {/* Controls */}
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-6">
         <button
           onClick={toggleAudio}
-          className="bg-white/10 hover:bg-white/20 p-3 rounded-full transition"
+          className={`p-4 rounded-full ${isMuted ? 'bg-red-600' : 'bg-gray-700'}`}
         >
-          {isMuted ? <FaMicrophoneSlash size={20} /> : <FaMicrophone size={20} />}
+          {isMuted ? <FaMicrophoneSlash size={24} /> : <FaMicrophone size={24} />}
         </button>
-
+        
         <button
           onClick={toggleVideo}
-          className="bg-white/10 hover:bg-white/20 p-3 rounded-full transition"
+          className={`p-4 rounded-full ${!videoOn ? 'bg-red-600' : 'bg-gray-700'}`}
         >
-          {videoOn ? <FaVideo size={20} /> : <FaVideoSlash size={20} />}
+          {videoOn ? <FaVideo size={24} /> : <FaVideoSlash size={24} />}
         </button>
-
+        
         <button
-          onClick={toggleScreenShare}
-          className="bg-white/10 hover:bg-white/20 p-3 rounded-full transition"
+          onClick={endCall}
+          className="p-4 rounded-full bg-red-600"
         >
-          {screenSharing ? <FaStop size={20} /> : <FaDesktop size={20} />}
-        </button>
-
-        <button
-          onClick={disconnect}
-          className="bg-red-600 hover:bg-red-700 p-3 rounded-full transition"
-        >
-          <FaPhoneSlash size={20} />
+          <FaPhoneSlash size={24} />
         </button>
       </div>
     </div>

@@ -6,10 +6,15 @@ import { createContext, useContext, useState } from 'react';
 export const PageContext = createContext();
 
 export const PageProvider = ({ children }) => {
+  const [ChatPage,SetChatPage]=useState(false)
   const [page, setPage] = useState(true);
+  const [UserId, SetUserId] = useState("");
+  const [inCommingCallId, SetIncommingCallId] = useState("");
+  const [callRemoteUserId, SetCallRemoteUserId] = useState("");
+  const [isCaller, SetIsCaller] = useState(false);
 
   return (
-    <PageContext.Provider value={{ page, setPage }}>
+    <PageContext.Provider value={{ page, setPage,UserId,SetUserId,ChatPage,SetChatPage,inCommingCallId,SetIncommingCallId,callRemoteUserId, SetCallRemoteUserId,isCaller, SetIsCaller}}>
       {children}
     </PageContext.Provider>
   );

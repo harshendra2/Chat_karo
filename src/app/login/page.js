@@ -51,6 +51,10 @@ export default function Login() {
          document.cookie = `currentUser=${response.data.userToken}; path=/; secure-${
           process.env.NODE_ENV === "production"
         }; sameSite=strict`;
+
+        document.cookie=`UserId=${response.data.userId}; path=/; secure-${
+          process.env.NODE_ENV === "production"
+        }; sameSite=strict`;
         router.push("/dashboard");
       }
     } catch (error) {

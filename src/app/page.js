@@ -35,12 +35,15 @@ function Home() {
                  
                 </div>
                 <div className="flex-1 hidden md:block">
-                  <Image
-                    src={foodMain}
-                    className="md:rounded-tl-[108px] md:rounded-br-[108px] w-[45] h-auto"
-                    alt="Food main"
-                    priority={true}
-                  />
+                 <Image
+  src={foodMain}
+  width={500} 
+  height={400} 
+  className="md:rounded-tl-[108px] md:rounded-br-[108px] w-full h-auto object-cover"
+  alt="Food main"
+  priority={true}
+/>
+
                 </div>
               </div>
               <Section />
