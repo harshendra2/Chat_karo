@@ -12,23 +12,41 @@ export default function IncommingCall({ handleRejectCall, handleAcceptCall, call
   const ringtoneRef = useRef(null);
   const timeoutRef = useRef(null);
   const [interactionDone, setInteractionDone] = useState(false);
-  const handleRejectRef = useRef(handleReject);
+  // const handleRejectRef = useRef(handleReject);
 
-  useEffect(() => {
-    handleRejectRef.current = handleReject;
-  });
 
-  useEffect(() => {
-    timeoutRef.current = setTimeout(() => {
-      handleRejectRef.current();
-    }, 60000);
+  const handleAccept = useCallback(() => {
+  clearAutoReject();
+  stopRingtone();
+  handleAcceptCall();
+  setInteractionDone(true);
+}, [handleAcceptCall]);
 
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
+
+  const handleReject = useCallback(() => {
+  clearAutoReject();
+  stopRingtone();
+  handleRejectCall();
+  setPage(true);
+}, [handleRejectCall, setPage]);
+
+
+  const handleRejectRef = useRef(null); // Initialize as null
+
+useEffect(() => {
+  handleRejectRef.current = handleReject; // Set after function exists
+});
+
+
+useEffect(() => {
+  const currentHandleReject = () => handleReject();
+  handleRejectRef.current = currentHandleReject;
+
+  timeoutRef.current = setTimeout(currentHandleReject, 60000);
+
+  return () => clearTimeout(timeoutRef.current);
+}, [handleReject]);
+
 
   const startRingtone = useCallback(() => {
     if (!interactionDone || ringtoneRef.current) return;
@@ -72,18 +90,6 @@ export default function IncommingCall({ handleRejectCall, handleAcceptCall, call
     }
   }, []);
 
-  const handleAccept = useCallback(() => {
-    clearAutoReject();
-    stopRingtone();
-    handleAcceptCall();
-  }, [clearAutoReject, stopRingtone, handleAcceptCall]);
-
-  const handleReject = useCallback(() => {
-    clearAutoReject();
-    stopRingtone();
-    handleRejectCall();
-    setPage(true);
-  }, [clearAutoReject, stopRingtone, handleRejectCall, setPage]);
 
     useEffect(() => {
     if (!caller) return;

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useContext, useRef } from "react";
+import { useEffect, useState, useContext, useRef,useCallback } from "react";
 import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash } from "react-icons/fa";
 import Cookies from "js-cookie";
 import { PageContext } from "../../context/PageContext";
@@ -9,8 +9,6 @@ import io from 'socket.io-client';
 import SocketUrl from '../../Service/SocketUrl';
 
 const socket = io(SocketUrl);
-
-
 
 export default function CallScreen() {
   const { 
@@ -33,7 +31,7 @@ export default function CallScreen() {
   const localStreamRef = useRef(null);
   const isMountedRef = useRef(true); 
   const callTimeoutRef = useRef(null);
-  
+
   const currentUserId = Cookies.get("UserId");
   const safePlay = (element) => {
     if (!element) return;
@@ -65,6 +63,13 @@ export default function CallScreen() {
     }
   };
 
+
+    const handleCallAccepted = useCallback(() => {
+  setCallStatus('accepted');
+  stopRingtone();
+}, []);
+  
+
  const stopMediaTracks = () => {
   if (localStreamRef.current) {
     localStreamRef.current.getTracks().forEach(track => {
@@ -82,6 +87,9 @@ export default function CallScreen() {
   }
 };
 
+
+
+//iuytrfdsdfrtyui
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -180,7 +188,6 @@ export default function CallScreen() {
         }
 
       } catch (error) {
-        console.error('Call setup failed:', error);
         if (isMountedRef.current) setCallStatus('failed');
         stopRingtone();
         stopMediaTracks();
@@ -188,6 +195,9 @@ export default function CallScreen() {
     };
 
     initCall();
+
+     socket.on('call-accepted', handleCallAccepted);
+  socket.on('call-rejected', () => endCall());
 
 callTimeoutRef.current = setTimeout(() => {
   if (callStatus !== 'connected') {
@@ -203,7 +213,8 @@ callTimeoutRef.current = setTimeout(() => {
         pcRef.current.close();
         pcRef.current = null;
       }
-
+     socket.off('call-accepted', handleCallAccepted);
+    socket.off('call-rejected');
       socket.off('webrtc-signal');
       socket.off('end-call');
 
@@ -237,27 +248,22 @@ callTimeoutRef.current = setTimeout(() => {
   };
 
 
-
-  const endCall = () => {
-  if (!isMountedRef.current) return;
-
-  clearTimeout(callTimeoutRef.current); 
-
+const endCall = useCallback(() => {
   socket.emit('end-call', { 
     callId: inCommingCallId,
     targetId: callRemoteUserId 
   });
 
-
   stopRingtone();
   stopMediaTracks();
-
+  
   if (pcRef.current) {
     pcRef.current.close();
     pcRef.current = null;
   }
-  setPage(true); 
-};
+  
+  setPage(true);
+}, [inCommingCallId, callRemoteUserId, setPage]);
 
 
   useEffect(() => {
@@ -284,6 +290,11 @@ callTimeoutRef.current = setTimeout(() => {
 
     GetDetails();
   }, [callRemoteUserId]);
+
+
+  if (isCaller && callStatus !== 'accepted') {
+  startRingtone();
+}
 
   return (
     <div 

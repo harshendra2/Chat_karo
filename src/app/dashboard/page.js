@@ -27,14 +27,9 @@ export default function DashBoard() {
   const router = useRouter();
   
   const [incomingCall, setIncomingCall] = useState(null);
-   useEffect(()=>{
-     if(!Cookies.get("currentUser")){
-     router.push("/login");
-  }
-  },[])
 
-  useEffect(() => {
-    const currentUserId = Cookies.get("UserId");
+useEffect(() => {
+  const currentUserId = Cookies.get("UserId");
     
     socket.emit('register', currentUserId);
 
@@ -45,27 +40,46 @@ export default function DashBoard() {
       SetIsCaller(false);
     });
 
-    return () => {
-      socket.off('incoming-call');
-    };
-  }, []);
+  
+  socket.on('call-rejected', () => {
+    setPage(true);
+    SetIncommingCallId(null);
+  });
 
-  const handleCallInitiate = () => {
-    const currentUserId = Cookies.get("UserId");
-    const callId = `${currentUserId}-${Date.now()}`;
-    
-    SetIncommingCallId(callId);
-    SetCallRemoteUserId(UserId);
-    SetIsCaller(true);
-    
-    socket.emit('initiate-call', {
-      callerId: currentUserId,
-      receiverId: UserId,
-      callId: callId
-    });
-    
-    setPage(false);
+  socket.on('call-ended', () => {
+    setPage(true);
+    SetIncommingCallId(null);
+  });
+
+  return () => {
+    socket.off('incoming-call');
+    socket.off('call-rejected');
+    socket.off('call-ended');
   };
+}, []);
+
+
+
+const handleCallInitiate = () => {
+  const currentUserId = Cookies.get("UserId");
+  const callId = `${currentUserId}-${UserId}-${Date.now()}`; 
+  
+  SetIncommingCallId(callId);
+  SetCallRemoteUserId(UserId);
+  SetIsCaller(true);
+  
+  socket.emit('initiate-call', {
+    callerId: currentUserId,
+    receiverId: UserId,
+    callId: callId
+  });
+  
+  setPage(false);
+};
+
+
+
+
 
   const handleAcceptCall = () => {
     socket.emit('accept-call', { 
