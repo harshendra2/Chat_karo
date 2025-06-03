@@ -7,7 +7,9 @@ import { useRouter } from "next/navigation";
 import { AuthContext } from "../../../context/AuthContext";
 import { UserNameContext } from "../../../context/UsernameContext";
 import { useToast } from '../../../context/ToastContext';
+import BaseUrl from '../../../Service/BaseUrl';
 import logo from "../../../assets/logos-removebg-preview.png";
+import LoginProtectedRoute from "../../../components/LoginProtectedRoute";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -33,7 +35,7 @@ export default function Login() {
     setLoading(true);
     try {
       const response = await Axios.post(
-        "http://localhost:4000/api/login",
+        `${BaseUrl}login`,
         {
           email,
           password,
@@ -73,6 +75,7 @@ export default function Login() {
   };
 
   return (
+    <LoginProtectedRoute>
      <div className="h-screen flex flex-col"> 
       <div className="flex items-center justify-between py-5 md:block">
         <Image 
@@ -218,5 +221,6 @@ export default function Login() {
         </div>
       </main>
     </div>
+    </LoginProtectedRoute>
   );
 }

@@ -8,6 +8,7 @@ import BaseUrl from '../../Service/BaseUrl';
 import Cookies from "js-cookie";
 import io from 'socket.io-client';
 import { PageContext } from "../../context/PageContext";
+import SocketUrl from '../../Service/SocketUrl';
 
 let socket;
 
@@ -18,7 +19,7 @@ export default function AcceptedList() {
   useEffect(() => {
     const userId = Cookies.get("UserId");
 
-    socket = io('http://localhost:4000', {
+    socket = io(SocketUrl, {
       transports: ['websocket'], // Force websocket connection
     });
 

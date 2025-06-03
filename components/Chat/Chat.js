@@ -11,6 +11,7 @@ import Axios from 'axios';
 import BaseUrl from '../../Service/BaseUrl';
 import Cookies from 'js-cookie';
 import io from 'socket.io-client';
+import SocketUrl from '../../Service/SocketUrl';
 
 export default function Chat({handleCallInitiate}) {
   const { setPage, UserId, ChatPage } = useContext(PageContext);
@@ -51,7 +52,7 @@ export default function Chat({handleCallInitiate}) {
     const currentUserId = Cookies.get('UserId');
     if (!currentUserId || !UserId) return;
 
-    socketRef.current = io('http://localhost:4000', {
+    socketRef.current = io(SocketUrl, {
       transports: ['websocket'],
       query: { userId: currentUserId },
     });

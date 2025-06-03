@@ -6,8 +6,11 @@ import { PageContext } from "../../context/PageContext";
 import Axios from 'axios';
 import BaseUrl from '../../Service/BaseUrl';
 import io from 'socket.io-client';
+import SocketUrl from '../../Service/SocketUrl';
 
-const socket = io('http://localhost:4000');
+const socket = io(SocketUrl);
+
+
 
 export default function CallScreen() {
   const { 

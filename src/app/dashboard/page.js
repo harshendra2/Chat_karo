@@ -9,8 +9,9 @@ import { PageContext } from "../../../context/PageContext";
 import IncommingCall from "../../../components/IncommingCall/IncommingCall";
 import io from 'socket.io-client';
 import ProtectedRoute from "../../../components/ProtectedRoute";
+import SocketUrl from '../../../Service/SocketUrl';
 
-const socket = io('http://localhost:4000');
+const socket = io(SocketUrl);
 
 export default function DashBoard() {
   const { 
@@ -40,7 +41,7 @@ export default function DashBoard() {
     socket.on('incoming-call', (data) => {
       setIncomingCall(data);
       setPage(false);
-      SetCallRemoteUserId(data.callerId);
+      SetCallRemoteUserId(data?.callerId);
       SetIsCaller(false);
     });
 
@@ -68,17 +69,17 @@ export default function DashBoard() {
 
   const handleAcceptCall = () => {
     socket.emit('accept-call', { 
-      callId: incomingCall.callId,
-      receiverId: incomingCall.callerId
+      callId: incomingCall?.callId,
+      receiverId: incomingCall?.callerId
     });
-    SetIncommingCallId(incomingCall.callId);
+    SetIncommingCallId(incomingCall?.callId);
     setIncomingCall(null);
   };
 
   const handleRejectCall = () => {
     socket.emit('reject-call', { 
-      callId: incomingCall.callId,
-      receiverId: incomingCall.callerId
+      callId: incomingCall?.callId,
+      receiverId: incomingCall?.callerId
     });
     setIncomingCall(null);
     setPage(true);
@@ -99,7 +100,7 @@ export default function DashBoard() {
         <IncommingCall 
           handleAcceptCall={handleAcceptCall} 
           handleRejectCall={handleRejectCall} 
-          caller={incomingCall.callerId}
+          caller={incomingCall?.callerId}
         />
       ) : (
         <CallScreen />

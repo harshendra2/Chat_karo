@@ -7,6 +7,7 @@ import Axios, { AxiosError } from "axios";
 import { useRouter } from "next/navigation";
 import { AuthContext } from "../../../context/AuthContext";
 import { UserNameContext } from "../../../context/UsernameContext";
+import BaseUrl from '../../../Service/BaseUrl';
 import logo from "../../../assets/logos-removebg-preview.png";
 
 export default function Signup() {
@@ -27,7 +28,7 @@ export default function Signup() {
     setLoading(true);
     try {
       const response = await Axios.post(
-        "http://localhost:4000/api/signup",
+        `${BaseUrl}signup`,
         {
           name:username,
           email,
