@@ -75,7 +75,7 @@ export default function Login() {
   };
 
   return (
-    <LoginProtectedRoute>
+    // <LoginProtectedRoute>
      <div className="h-screen flex flex-col"> 
       <div className="flex items-center justify-between py-5 md:block">
         <Image 
@@ -221,6 +221,6 @@ export default function Login() {
         </div>
       </main>
     </div>
-    </LoginProtectedRoute>
+    // </LoginProtectedRoute>
   );
 }
