@@ -1,3 +1,3 @@
-const SocketUrl = 'http://3.7.45.207';
+const SocketUrl = 'http://13.201.85.157';
 
 export default SocketUrl;

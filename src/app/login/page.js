@@ -15,7 +15,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const router = useRouter();
-  const { setIsAuthenticated } = useContext(AuthContext);
+  const {isAuthenticated, setIsAuthenticated } = useContext(AuthContext);
   const { setUsername } = useContext(UserNameContext);
   const [passwordHidden, setPasswordHidden] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -57,6 +57,8 @@ export default function Login() {
         document.cookie=`UserId=${response.data.userId}; path=/; secure-${
           process.env.NODE_ENV === "production"
         }; sameSite=strict`;
+
+        setIsAuthenticated(true);
         router.push("/dashboard");
       }
     } catch (error) {
@@ -75,7 +77,7 @@ export default function Login() {
   };
 
   return (
-    // <LoginProtectedRoute>
+    <LoginProtectedRoute>
      <div className="h-screen flex flex-col"> 
       <div className="flex items-center justify-between py-5 md:block">
         <Image 
@@ -221,6 +223,6 @@ export default function Login() {
         </div>
       </main>
     </div>
-    // </LoginProtectedRoute>
+    </LoginProtectedRoute>
   );
 }

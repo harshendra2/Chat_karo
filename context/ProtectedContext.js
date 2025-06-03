@@ -1,27 +1,28 @@
+// context/AuthContext.js (no changes needed)
 "use client";
 import { createContext, useState, useEffect } from "react";
 import Cookies from "js-cookie";
 
-const AuthContext = createContext({
+const LoginAuthContext = createContext({
   isAuthenticated: "",
   setIsAuthenticated: () => {},
 });
 
 const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, LoginsetIsAuthenticated] = useState(false);
   
   useEffect(() => {
     const getCookies = Cookies.get("currentUser");
     if (getCookies) {
-      setIsAuthenticated(true);
+      LoginsetIsAuthenticated(true);
     }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, setIsAuthenticated }}>
+    <LoginAuthContext.Provider value={{ isAuthenticated, LoginsetIsAuthenticated }}>
       {children}
-    </AuthContext.Provider>
+    </LoginAuthContext.Provider>
   );
 };
 
-export { AuthContext, AuthProvider };
+export { LoginAuthContext, AuthProvider };

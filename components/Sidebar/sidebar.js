@@ -10,10 +10,14 @@ import Axios, { AxiosError } from "axios";
 import BaseUrl from "../../Service/BaseUrl";
 import Cookies from "js-cookie";
 import { PageContext } from "../../context/PageContext";
+import { AuthContext } from "../../context/AuthContext";
+import {LoginAuthContext}from "../../context/ProtectedContext"
 
 export default function Sidebar() {
   const router = useRouter();
   const { UserId, SetUserId } = useContext(PageContext);
+  const {isAuthenticated, setIsAuthenticated } = useContext(AuthContext);
+  const {LoginsetIsAuthenticated} = useContext(LoginAuthContext);
 
   const [state, SetState] = useState(null);
   const [search, Setsearch] = useState("");
@@ -67,6 +71,9 @@ export default function Sidebar() {
 
   function HandleLogout() {
     Cookies.remove("currentUser");
+    Cookies.remove("UserId");
+    setIsAuthenticated(false)
+    LoginsetIsAuthenticated(false)
     router.push("/login");
   }
 
