@@ -12,41 +12,29 @@ export default function IncommingCall({ handleRejectCall, handleAcceptCall, call
   const ringtoneRef = useRef(null);
   const timeoutRef = useRef(null);
   const [interactionDone, setInteractionDone] = useState(false);
-  // const handleRejectRef = useRef(handleReject);
-
 
   const handleAccept = useCallback(() => {
-  clearAutoReject();
-  stopRingtone();
-  handleAcceptCall();
-  setInteractionDone(true);
-}, [handleAcceptCall]);
-
+    clearAutoReject();
+    stopRingtone();
+    handleAcceptCall();
+    setInteractionDone(true);
+  }, [handleAcceptCall]);
 
   const handleReject = useCallback(() => {
-  clearAutoReject();
-  stopRingtone();
-  handleRejectCall();
-  setPage(true);
-}, [handleRejectCall, setPage]);
+    clearAutoReject();
+    stopRingtone();
+    handleRejectCall();
+    setPage(true);
+  }, [handleRejectCall, setPage]);
 
+  const handleRejectRef = useRef(handleReject);
 
-  const handleRejectRef = useRef(null); // Initialize as null
+  useEffect(() => {
+    handleRejectRef.current = handleReject;
+    timeoutRef.current = setTimeout(() => handleRejectRef.current(), 60000);
 
-useEffect(() => {
-  handleRejectRef.current = handleReject; // Set after function exists
-});
-
-
-useEffect(() => {
-  const currentHandleReject = () => handleReject();
-  handleRejectRef.current = currentHandleReject;
-
-  timeoutRef.current = setTimeout(currentHandleReject, 60000);
-
-  return () => clearTimeout(timeoutRef.current);
-}, [handleReject]);
-
+    return () => clearTimeout(timeoutRef.current);
+  }, [handleReject]);
 
   const startRingtone = useCallback(() => {
     if (!interactionDone || ringtoneRef.current) return;
@@ -90,8 +78,7 @@ useEffect(() => {
     }
   }, []);
 
-
-    useEffect(() => {
+  useEffect(() => {
     if (!caller) return;
 
     const GetDetails = async () => {
@@ -124,18 +111,18 @@ useEffect(() => {
       <div className="z-10 flex flex-col items-center gap-6">
         <div className="w-32 h-32 rounded-full overflow-hidden ring-4 ring-green-500 shadow-lg bg-gray-200">
           {state?.Profile ? (
-      <Image
-        src={state?.Profile}
-        alt={`logo`}
-        width={100}
-        height={100}
-        className="h-32 w-32 rounded-full border-2 border-white object-cover"
-      />
-    ) : (
-      <div className="h-32 w-32 rounded-full border-2 border-white bg-gray-600 text-white flex items-center justify-center text-xl font-semibold">
-        {state?.name?.[0]?.toUpperCase() || 'U'}
-      </div>
-    )}
+            <Image
+              src={state?.Profile}
+              alt={`logo`}
+              width={100}
+              height={100}
+              className="h-32 w-32 rounded-full border-2 border-white object-cover"
+            />
+          ) : (
+            <div className="h-32 w-32 rounded-full border-2 border-white bg-gray-600 text-white flex items-center justify-center text-xl font-semibold">
+              {state?.name?.[0]?.toUpperCase() || 'U'}
+            </div>
+          )}
         </div>
 
         <div className="text-center">

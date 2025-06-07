@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useContext, useRef,useCallback } from "react";
+import { useEffect, useState, useContext, useRef, useCallback } from "react";
 import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash } from "react-icons/fa";
 import Cookies from "js-cookie";
 import { PageContext } from "../../context/PageContext";
@@ -8,7 +8,11 @@ import BaseUrl from '../../Service/BaseUrl';
 import io from 'socket.io-client';
 import SocketUrl from '../../Service/SocketUrl';
 
-const socket = io(SocketUrl);
+const socket = io(SocketUrl, {
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+});
 
 export default function CallScreen() {
   const { 
@@ -17,7 +21,7 @@ export default function CallScreen() {
     callRemoteUserId,
     isCaller
   } = useContext(PageContext);
-  const [state,setState]=useState(null)
+  const [state, setState] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [videoOn, setVideoOn] = useState(true);
   const [callStatus, setCallStatus] = useState('connecting');
@@ -31,65 +35,169 @@ export default function CallScreen() {
   const localStreamRef = useRef(null);
   const isMountedRef = useRef(true); 
   const callTimeoutRef = useRef(null);
+  const playPromisesRef = useRef([]);
 
   const currentUserId = Cookies.get("UserId");
-  const safePlay = (element) => {
+
+  const safePlay = useCallback(async (element) => {
     if (!element) return;
-    element.play().catch(error => {
+    
+    try {
+      playPromisesRef.current = playPromisesRef.current.filter(p => !p.settled);
+      const playPromise = element.play();
+      playPromisesRef.current.push({
+        promise: playPromise,
+        settled: false
+      });
+      await playPromise;
+      playPromisesRef.current = playPromisesRef.current.map(p => 
+        p.promise === playPromise ? {...p, settled: true} : p
+      );
+    } catch (error) {
       if (error.name === 'AbortError' || 
           error.message.includes('interrupted by a new load request') ||
           error.message.includes('request was interrupted')) {
         return;
       }
       console.error('Error playing video:', error);
-    });
-  };
+    }
+  }, []);
 
-  const startRingtone = () => {
+  const startRingtone = useCallback(() => {
     if (!ringtoneRef.current && interactionDone) {
       ringtoneRef.current = new Audio("/ringtone-126505.mp3");
       ringtoneRef.current.loop = true;
-      ringtoneRef.current.play().catch(e => console.error("Ringtone error:", e));
+      const playPromise = ringtoneRef.current.play();
+      playPromisesRef.current.push({
+        promise: playPromise,
+        settled: false
+      });
+      playPromise.catch(e => console.error("Ringtone error:", e));
       setRingtonePlaying(true);
     }
-  };
+  }, [interactionDone]);
 
-  const stopRingtone = () => {
+  const stopRingtone = useCallback(() => {
     if (ringtoneRef.current) {
-      ringtoneRef.current.pause();
-      ringtoneRef.current.currentTime = 0;
-      ringtoneRef.current = null;
-      setRingtonePlaying(false);
+      Promise.allSettled(playPromisesRef.current.map(p => p.promise))
+        .then(() => {
+          ringtoneRef.current.pause();
+          ringtoneRef.current.currentTime = 0;
+          ringtoneRef.current = null;
+          setRingtonePlaying(false);
+        })
+        .catch(console.error);
     }
-  };
+  }, []);
 
+  const handleCallAccepted = useCallback(() => {
+    setCallStatus('accepted');
+    stopRingtone();
+  }, [stopRingtone]);
 
-    const handleCallAccepted = useCallback(() => {
-  setCallStatus('accepted');
-  stopRingtone();
-      }, []);
-  
+  const endCall = useCallback(() => {
+    if (inCommingCallId) {
+      socket.emit('end-call', { 
+        callId: inCommingCallId,
+        targetId: callRemoteUserId 
+      });
+    }
 
- const stopMediaTracks = () => {
-  if (localStreamRef.current) {
-    localStreamRef.current.getTracks().forEach(track => {
-      track.stop();
-    });
-    localStreamRef.current = null;
-  }
+    stopRingtone();
+    stopMediaTracks();
+    
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+    
+    setPage(true);
+  }, [inCommingCallId, callRemoteUserId, setPage]);
 
-  if (localVideoRef.current) {
-    localVideoRef.current.srcObject = null;
-  }
+  const stopMediaTracks = useCallback(() => {
+    Promise.allSettled(playPromisesRef.current.map(p => p.promise))
+      .then(() => {
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach(track => {
+            track.stop();
+          });
+          localStreamRef.current = null;
+        }
 
-  if (remoteVideoRef.current) {
-    remoteVideoRef.current.srcObject = null;
-  }
-};
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = null;
+        }
 
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = null;
+        }
+      })
+      .catch(console.error);
+  }, []);
 
+  const createPeerConnection = useCallback(async () => {
+    try {
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' }
+        ]
+      });
+      pcRef.current = pc;
 
-//iuytrfdsdfrtyui
+      pc.onicecandidate = ({ candidate }) => {
+        if (candidate) {
+          socket.emit('webrtc-signal', {
+            callId: inCommingCallId,
+            signal: { type: 'candidate', candidate },
+            targetId: callRemoteUserId
+          });
+        }
+      };
+
+      pc.ontrack = async (event) => {
+        if (remoteVideoRef.current && isMountedRef.current) {
+          remoteVideoRef.current.srcObject = event.streams[0];
+          await safePlay(remoteVideoRef.current);
+          setCallStatus('connected');
+          stopRingtone();
+          clearTimeout(callTimeoutRef.current); 
+        }
+      };
+
+      return pc;
+    } catch (error) {
+      console.error("Error creating peer connection:", error);
+      throw error;
+    }
+  }, [inCommingCallId, callRemoteUserId, safePlay, stopRingtone]);
+
+  const handleSignal = useCallback(async ({ signal }) => {
+    if (!pcRef.current || !isMountedRef.current) return;
+    
+    try {
+      if (signal.type === 'offer') {
+        await pcRef.current.setRemoteDescription(new RTCSessionDescription(signal));
+        const answer = await pcRef.current.createAnswer();
+        await pcRef.current.setLocalDescription(answer);
+        
+        socket.emit('webrtc-signal', {
+          callId: inCommingCallId,
+          signal: { type: 'answer', sdp: answer.sdp },
+          targetId: callRemoteUserId
+        });
+      } 
+      else if (signal.type === 'answer') {
+        await pcRef.current.setRemoteDescription(new RTCSessionDescription(signal));
+      } 
+      else if (signal.candidate) {
+        await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate));
+      }
+    } catch (err) {
+      console.error("Signal handling error:", err);
+    }
+  }, [inCommingCallId, callRemoteUserId]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -98,7 +206,6 @@ export default function CallScreen() {
 
     const initCall = async () => {
       try {
-
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: true, 
           audio: true 
@@ -108,79 +215,30 @@ export default function CallScreen() {
         
         if (localVideoRef.current && isMountedRef.current) {
           localVideoRef.current.srcObject = stream;
-          safePlay(localVideoRef.current);
+          await safePlay(localVideoRef.current);
         }
 
-        const pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
-        pcRef.current = pc;
-
+        const pc = await createPeerConnection();
         stream.getTracks().forEach(track => {
           pc.addTrack(track, stream);
         });
 
-        pc.onicecandidate = ({ candidate }) => {
-          if (candidate) {
-            socket.emit('webrtc-signal', {
-              callId: inCommingCallId,
-              signal: { type: 'candidate', candidate },
-              targetId: callRemoteUserId
-            });
-          }
-        };
-
-        pc.ontrack = (event) => {
-          if (remoteVideoRef.current && isMountedRef.current) {
-            remoteVideoRef.current.srcObject = event.streams[0];
-            safePlay(remoteVideoRef.current);
-            setCallStatus('connected');
-            stopRingtone();
-            clearTimeout(callTimeoutRef.current); 
-          }
-
-        };
-
-        const handleSignal = async ({ signal }) => {
-          if (!pcRef.current || !isMountedRef.current) return;
-          
-          try {
-            if (signal.type === 'offer') {
-              await pcRef.current.setRemoteDescription(signal);
-              const answer = await pcRef.current.createAnswer();
-              await pcRef.current.setLocalDescription(answer);
-              
-              socket.emit('webrtc-signal', {
-                callId: inCommingCallId,
-                signal: { type: 'answer', answer },
-                targetId: callRemoteUserId
-              });
-            } 
-            else if (signal.type === 'answer') {
-              await pcRef.current.setRemoteDescription(signal);
-            } 
-            else if (signal.candidate) {
-              await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate));
-            }
-          } catch (err) {
-            console.error("Signal handling error:", err);
-          }
-        };
-
         socket.on('webrtc-signal', handleSignal);
 
-        const handleCallEnd = () => {
+        socket.on('call-ended', () => {
           endCall();
-        };
-        socket.on('end-call', handleCallEnd);
+        });
 
         if (isCaller) {
-          const offer = await pc.createOffer();
+          const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+          });
           await pc.setLocalDescription(offer);
           
           socket.emit('webrtc-signal', {
             callId: inCommingCallId,
-            signal: { type: 'offer', offer },
+            signal: { type: 'offer', sdp: offer.sdp },
             targetId: callRemoteUserId
           });
           
@@ -188,6 +246,7 @@ export default function CallScreen() {
         }
 
       } catch (error) {
+        console.error("Call initialization error:", error);
         if (isMountedRef.current) setCallStatus('failed');
         stopRingtone();
         stopMediaTracks();
@@ -196,33 +255,47 @@ export default function CallScreen() {
 
     initCall();
 
-     socket.on('call-accepted', handleCallAccepted);
-  socket.on('call-rejected', () => endCall());
+    socket.on('call-accepted', handleCallAccepted);
+    socket.on('call-rejected', () => endCall());
 
-callTimeoutRef.current = setTimeout(() => {
-  if (callStatus !== 'connected') {
-    endCall(); 
-  }
-}, 60000);
-
+    callTimeoutRef.current = setTimeout(() => {
+      if (callStatus !== 'connected') {
+        console.log("Call timeout - ending call");
+        endCall(); 
+      }
+    }, 60000);
 
     return () => {
       isMountedRef.current = false;
+      socket.off('call-accepted', handleCallAccepted);
+      socket.off('call-rejected');
+      socket.off('webrtc-signal');
+      socket.off('call-ended');
 
       if (pcRef.current) {
         pcRef.current.close();
         pcRef.current = null;
       }
-     socket.off('call-accepted', handleCallAccepted);
-    socket.off('call-rejected');
-      socket.off('webrtc-signal');
-      socket.off('end-call');
-
+      
       stopRingtone();
       stopMediaTracks();
       clearTimeout(callTimeoutRef.current);
+      playPromisesRef.current = [];
     };
-  }, [inCommingCallId, callRemoteUserId, isCaller, interactionDone]);
+  }, [
+    inCommingCallId, 
+    callRemoteUserId, 
+    isCaller, 
+    interactionDone, 
+    safePlay, 
+    startRingtone, 
+    stopRingtone, 
+    stopMediaTracks, 
+    handleCallAccepted, 
+    endCall,
+    createPeerConnection,
+    handleSignal
+  ]);
 
   const handleInteraction = () => {
     if (!interactionDone) {
@@ -246,25 +319,6 @@ callTimeoutRef.current = setTimeout(() => {
       videoTracks.forEach(track => track.enabled = !videoOn);
     }
   };
-
-
-const endCall = useCallback(() => {
-  socket.emit('end-call', { 
-    callId: inCommingCallId,
-    targetId: callRemoteUserId 
-  });
-
-  stopRingtone();
-  stopMediaTracks();
-  
-  if (pcRef.current) {
-    pcRef.current.close();
-    pcRef.current = null;
-  }
-  
-  setPage(true);
-}, [inCommingCallId, callRemoteUserId, setPage]);
-
 
   useEffect(() => {
     if (!callRemoteUserId) return;
@@ -291,34 +345,27 @@ const endCall = useCallback(() => {
     GetDetails();
   }, [callRemoteUserId]);
 
-
-  if (isCaller && callStatus !== 'accepted') {
-  startRingtone();
-}
-
   return (
     <div 
       className="w-full h-screen bg-black text-white flex flex-col relative"
-       onClick={handleInteraction}
+      onClick={handleInteraction}
     >
-      {/* Main video */}
       <video
         ref={remoteVideoRef}
         className="w-full h-full object-cover"
         autoPlay
         playsInline
+        muted={false}
       />
       
-      {/* Status indicator */}
       {callStatus !== 'connected' && (
         <div className="absolute top-4 right-4 text-white bg-black/50 px-4 py-2 rounded shadow flex items-center gap-2">
           <span className="text-sm font-semibold animate-pulse">
-            {callStatus == 'connecting' ? 'Connecting...' : 'Call Failed'}
+            {callStatus === 'connecting' ? 'Connecting...' : 'Call Failed'}
           </span>
         </div>
       )}
 
-      {/* Interaction prompt */}
       {!interactionDone && isCaller && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
           <div className="text-center p-6 bg-black/50 rounded-lg">
@@ -328,14 +375,12 @@ const endCall = useCallback(() => {
         </div>
       )}
 
-      {/* Ringtone indicator */}
       {ringtonePlaying && (
         <div className="absolute top-4 left-4 text-white bg-black/50 px-4 py-2 rounded shadow flex items-center gap-2">
           <span className="text-sm font-semibold animate-pulse">Ringing...</span>
         </div>
       )}
 
-      {/* Local preview */}
       <div className="absolute bottom-28 right-4 w-32 h-24 md:w-48 md:h-32 rounded-lg overflow-hidden shadow-lg border-2 border-white bg-black">
         <video 
           ref={localVideoRef}
@@ -346,7 +391,6 @@ const endCall = useCallback(() => {
         />
       </div>
 
-      {/* Controls */}
       <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-6">
         <button
           onClick={toggleAudio}

@@ -12,13 +12,16 @@ import BaseUrl from '../../Service/BaseUrl';
 import Cookies from 'js-cookie';
 import io from 'socket.io-client';
 import SocketUrl from '../../Service/SocketUrl';
+import { IoArrowBack } from 'react-icons/io5';
 
-export default function Chat({handleCallInitiate}) {
+export default function Chat({handleCallInitiate,showChat, setShowChat}) {
   const { setPage, UserId, ChatPage } = useContext(PageContext);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [messageInput, setMessageInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [State, setState] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
+
 
   const socketRef = useRef(null);
   const scrollEndRef = useRef(null);
@@ -111,9 +114,29 @@ export default function Chat({handleCallInitiate}) {
     handleCallInitiate()
   };
 
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    if (typeof window !== 'undefined') {
+      checkIfMobile();
+      window.addEventListener('resize', checkIfMobile);
+      return () => window.removeEventListener('resize', checkIfMobile);
+    }
+  }, []);
+
   return (
-    <div className="h-screen ml-2 w-[79%] flex flex-col bg-transparent shadow-[inset_0_0_20px_2px_rgba(255,255,255,0.3)]">
-      <AcceptedList />
+  <div className={`h-screen flex ml-0 w-full flex-col bg-transparent shadow-[inset_0_0_20px_2px_rgba(255,255,255,0.3)]`}>
+    {isMobile &&  (
+        <button 
+       onClick={() => setShowChat(false)}
+          className="md:hidden flex items-center gap-2 p-2 text-white"
+        >
+          <IoArrowBack /> Back
+        </button>
+      )}
+      <AcceptedList  showChat={showChat} setShowChat={setShowChat}/>
 
       {ChatPage ? (
         <>

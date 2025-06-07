@@ -12,7 +12,7 @@ import SocketUrl from '../../Service/SocketUrl';
 
 let socket;
 
-export default function AcceptedList() {
+export default function AcceptedList({showChat,setShowChat}) {
   const {UserId,SetUserId,ChatPage,SetChatPage} = useContext(PageContext);
   const [User, SetUser] = useState([]);
 
@@ -45,13 +45,20 @@ export default function AcceptedList() {
   }
 
   return (
-    <div className="flex items-center justify-between gap-4 border border-white/20 rounded px-6 py-4 w-[98%] h-[15%] bg-black/10 mx-auto mt-2">
+    <div className="flex items-center justify-between gap-4 border border-white/20 rounded px-6 py-4 w-[98%] h-[15%] bg-black/10 mx-auto mt-2 overflow-x-auto scrollbar-hide">
   <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide">
     {User && User.map((temp, index) => (
       <div
     key={index}
-    className="relative cursor-pointer"
-    onClick={() => ChatContinue(temp?._id)}
+    className="relative cursor-pointer flex-shrink-0"
+    // onClick={() => ChatContinue(temp?._id)}
+
+     onClick={() => {
+          ChatContinue(temp?._id);
+          if (window.innerWidth < 768) {
+            setShowChat(true);
+          }
+        }}
   >
     {temp?.Profile ? (
       <Image

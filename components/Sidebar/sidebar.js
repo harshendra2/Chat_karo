@@ -13,7 +13,7 @@ import { PageContext } from "../../context/PageContext";
 import { AuthContext } from "../../context/AuthContext";
 import {LoginAuthContext}from "../../context/ProtectedContext"
 
-export default function Sidebar() {
+export default function Sidebar({showChat, setShowChat}) {
   const router = useRouter();
   const { UserId, SetUserId } = useContext(PageContext);
   const {isAuthenticated, setIsAuthenticated } = useContext(AuthContext);
@@ -105,20 +105,21 @@ export default function Sidebar() {
   };
 
   return (
-    <div className="h-screen w-full md:w-[20%] flex flex-col bg-transparent shadow-[inset_0_0_20px_2px_rgba(255,255,255,0.3)]">
-      {/* Top Section (Scrollable) */}
-      <div className="flex-grow overflow-y-auto px-2 pb-4">
-        <div className="md:relative mt-[45px] md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
-          <Image
-            src={logo}
-            alt="logo"
-            width={100}
-            height={100}
-            className="h-40 w-auto mx-auto"
-          />
-        </div>
-        <div className="h-[1px] w-[98%] bg-gradient-to-r from-transparent via-white/50 to-transparent mt-[-110px]"></div>
-        <div className="flex items-center gap-2 overflow-hidden border border-white/20 rounded-lg h-auto py-1 relative">
+ <div className={`h-screen w-full flex flex-col bg-transparent shadow-[inset_0_0_20px_2px_rgba(255,255,255,0.3)]`}>
+      <div className="flex flex-col h-full">
+        {/* Top section - non-scrollable */}
+        <div className="flex-shrink-0 px-2">
+          <div className="logo md:relative mt-[45px] md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:-translate-0">
+            <Image
+              src={logo}
+              alt="logo"
+              width={100}
+              height={100}
+              className="h-40 w-auto mx-auto"
+            />
+          </div>
+          <div className="h-[1px] w-[98%] bg-gradient-to-r from-transparent via-white/50 to-transparent mt-[-110px]"></div>
+          <div className="flex items-center gap-2 overflow-hidden border border-white/20 rounded-lg h-auto py-1 relative">
           <div className="relative">
             {selectedImage || state?.Profile ? (
               <Image
@@ -151,9 +152,10 @@ export default function Sidebar() {
             <h3 className="text-white m-0 text-sm md:text-sm">{state?.name}</h3>
             <p className="text-gray-300 text-xs">My account</p>
           </div>
-        </div>
-        <div className="h-[1px] w-[98%] bg-gradient-to-r from-transparent via-white/50 to-transparent mt-[2px]"></div>
-        <input
+
+          </div>
+          <div className="h-[1px] w-[98%] bg-gradient-to-r from-transparent via-white/50 to-transparent mt-[2px]"></div>
+            <input
           type="search"
           required
           className="w-full mt-2 px-3 py-2 text-gray-100 bg-transparent outline-none border border-white-100 focus:border-red shadow-md rounded-lg duration-200"
@@ -167,26 +169,38 @@ export default function Sidebar() {
             }
           }}
         />
-        <div className="h-[1px] w-[98%] bg-gradient-to-r from-transparent via-white/50 to-transparent mt-[2px]"></div>
-        <div className="mt-2">
+          <div className="h-[1px] w-[98%] bg-gradient-to-r from-transparent via-white/50 to-transparent mt-[2px]"></div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-2 scrollbar-hide">
           {AllUser &&
             AllUser.map((temp, index) => (
-              <UserList key={index} data={temp} Search={Search} />
+              <div 
+                key={index} 
+                onClick={() => {
+                  Search();
+                  SetUserId(temp?._id);
+                  if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                    setShowChat(true);
+                  }
+                }}
+              >
+                <UserList data={temp} Search={Search} />
+              </div>
             ))}
         </div>
-      </div>
 
-      {/* Bottom Section (Fixed) */}
-      <div className="mt-auto px-2 pb-4">
-        <div className="h-[1px] w-[98%] bg-gradient-to-r from-transparent via-white/50 to-transparent"></div>
-        <div className="flex items-center justify-center border border-white/20 rounded h-9 cursor-pointer mt-2">
-          <button
-            className="flex flex-row gap-3 justify-center cursor-pointer w-full h-full items-center"
-            onClick={HandleLogout}
-          >
-            <IoMdLogOut />
-            <p className="text-sm text-white">Log Out</p>
-          </button>
+        {/* Bottom section - non-scrollable */}
+        <div className="flex-shrink-0 px-2 pb-4">
+          <div className="h-[1px] w-[98%] bg-gradient-to-r from-transparent via-white/50 to-transparent"></div>
+          <div className="flex items-center justify-center border border-white/20 rounded h-9 cursor-pointer mt-2">
+            <button
+              className="flex flex-row gap-3 justify-center cursor-pointer w-full h-full items-center"
+              onClick={HandleLogout}
+            >
+              <IoMdLogOut />
+              <p className="text-sm text-white">Log Out</p>
+            </button>
+          </div>
         </div>
       </div>
     </div>
