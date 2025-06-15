@@ -12,12 +12,14 @@ export default function IncommingCall({ handleRejectCall, handleAcceptCall, call
   const ringtoneRef = useRef(null);
   const timeoutRef = useRef(null);
   const [interactionDone, setInteractionDone] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleAccept = useCallback(() => {
     clearAutoReject();
     stopRingtone();
     handleAcceptCall();
     setInteractionDone(true);
+    setError(null);
   }, [handleAcceptCall]);
 
   const handleReject = useCallback(() => {
@@ -25,13 +27,17 @@ export default function IncommingCall({ handleRejectCall, handleAcceptCall, call
     stopRingtone();
     handleRejectCall();
     setPage(true);
+    setError(null);
   }, [handleRejectCall, setPage]);
 
   const handleRejectRef = useRef(handleReject);
 
   useEffect(() => {
     handleRejectRef.current = handleReject;
-    timeoutRef.current = setTimeout(() => handleRejectRef.current(), 60000);
+    timeoutRef.current = setTimeout(() => {
+      console.log("Auto-rejecting call due to timeout");
+      handleRejectRef.current();
+    }, 60000);
 
     return () => clearTimeout(timeoutRef.current);
   }, [handleReject]);
@@ -39,14 +45,23 @@ export default function IncommingCall({ handleRejectCall, handleAcceptCall, call
   const startRingtone = useCallback(() => {
     if (!interactionDone || ringtoneRef.current) return;
     
-    ringtoneRef.current = new Audio("/ringtone-126505.mp3");
-    ringtoneRef.current.loop = true;
-    ringtoneRef.current.play().catch((e) => console.error("Ringtone error:", e));
+    try {
+      ringtoneRef.current = new Audio("/ringtone-126505.mp3");
+      ringtoneRef.current.loop = true;
+      ringtoneRef.current.play().catch((e) => {
+        console.error("Ringtone error:", e);
+        setError('Failed to play ringtone');
+      });
+    } catch (error) {
+      console.error("Error creating ringtone:", error);
+      setError('Failed to play ringtone');
+    }
   }, [interactionDone]);
 
   const handleInteraction = () => {
     if (!interactionDone) {
       setInteractionDone(true);
+      setError(null);
     }
   };
 
@@ -59,6 +74,7 @@ export default function IncommingCall({ handleRejectCall, handleAcceptCall, call
       if (ringtoneRef.current) {
         ringtoneRef.current.pause();
         ringtoneRef.current.currentTime = 0;
+        ringtoneRef.current = null;
       }
     };
   }, [interactionDone, startRingtone]);
@@ -97,6 +113,7 @@ export default function IncommingCall({ handleRejectCall, handleAcceptCall, call
         }
       } catch (error) {
         console.error('Error fetching details:', error);
+        setError('Failed to load caller details');
       }
     };
 
@@ -126,12 +143,15 @@ export default function IncommingCall({ handleRejectCall, handleAcceptCall, call
         </div>
 
         <div className="text-center">
-          <h2 className="text-2xl font-semibold">{state?.name}</h2>
+          <h2 className="text-2xl font-semibold">{state?.name || 'Unknown'}</h2>
           <p className="text-gray-300 mt-1">Incoming Video Call...</p>
           {!interactionDone && (
             <p className="text-yellow-400 text-sm mt-2 animate-pulse">
               Tap anywhere to enable sound
             </p>
+          )}
+          {error && (
+            <p className="text-red-400 text-sm mt-2">{error}</p>
           )}
         </div>
 

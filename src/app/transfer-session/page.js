@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useContext } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import BaseUrl from '../../../Service/BaseUrl';
 import Image from "next/image";
 import logo from "../../../assets/logos-removebg-preview.png";
+import Cookies from "js-cookie";
+import { AuthContext } from "../../../context/AuthContext";
 
 export default function TransferSession() {
   const [timeLeft, setTimeLeft] = useState(120);
@@ -12,6 +14,7 @@ export default function TransferSession() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionId = searchParams.get('sessionId');
+  const { setIsAuthenticated } = useContext(AuthContext);
 
   useEffect(() => {
     if (sessionId) {
@@ -21,9 +24,21 @@ export default function TransferSession() {
           const data = await response.json();
           
           if (data.token && data.userId) {
-            // Set cookies
-            document.cookie = `currentUser=${data.token}; path=/; secure=${process.env.NODE_ENV === "production"}; sameSite=strict`;
-            document.cookie = `UserId=${data.userId}; path=/; secure=${process.env.NODE_ENV === "production"}; sameSite=strict`;
+            // Set cookies using js-cookie
+            Cookies.set("currentUser", data.token, {
+              path: "/",
+              secure: process.env.NODE_ENV === "production",
+              sameSite: "strict"
+            });
+            
+            Cookies.set("UserId", data.userId, {
+              path: "/",
+              secure: process.env.NODE_ENV === "production",
+              sameSite: "strict"
+            });
+            
+            // Update authentication state
+            setIsAuthenticated(true);
             
             // Redirect to dashboard
             router.push('/dashboard');
@@ -36,19 +51,21 @@ export default function TransferSession() {
       
       completeTransfer();
     }
-  }, [sessionId, router]);
+  }, [sessionId, router, setIsAuthenticated]);
 
   const onClose = () => {
     router.push('/login');
   };
 
   useEffect(() => {
-  const timer = timeLeft > 0 && setInterval(() => setTimeLeft(timeLeft - 1), 1000);
-  return (()=>{
-    clearInterval(timer);
-    router.push('/login');
-  })
-}, [timeLeft]);
+    const timer = timeLeft > 0 && setInterval(() => setTimeLeft(timeLeft - 1), 1000);
+    return () => {
+      clearInterval(timer);
+      if (timeLeft <= 0) {
+        router.push('/login');
+      }
+    };
+  }, [timeLeft, router]);
 
   return (
     <div className="min-h-screen flex flex-col bg-black-50">

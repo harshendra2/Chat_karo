@@ -5,14 +5,7 @@ import Cookies from "js-cookie";
 import { PageContext } from "../../context/PageContext";
 import Axios from 'axios';
 import BaseUrl from '../../Service/BaseUrl';
-import io from 'socket.io-client';
-import SocketUrl from '../../Service/SocketUrl';
-
-const socket = io(SocketUrl, {
-  reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-});
+import { getSocket } from '../../utils/socketManager';
 
 export default function CallScreen() {
   const { 
@@ -27,6 +20,7 @@ export default function CallScreen() {
   const [callStatus, setCallStatus] = useState('connecting');
   const [interactionDone, setInteractionDone] = useState(false);
   const [ringtonePlaying, setRingtonePlaying] = useState(false);
+  const [error, setError] = useState(null);
   
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -65,15 +59,23 @@ export default function CallScreen() {
 
   const startRingtone = useCallback(() => {
     if (!ringtoneRef.current && interactionDone) {
-      ringtoneRef.current = new Audio("/ringtone-126505.mp3");
-      ringtoneRef.current.loop = true;
-      const playPromise = ringtoneRef.current.play();
-      playPromisesRef.current.push({
-        promise: playPromise,
-        settled: false
-      });
-      playPromise.catch(e => console.error("Ringtone error:", e));
-      setRingtonePlaying(true);
+      try {
+        ringtoneRef.current = new Audio("/ringtone-126505.mp3");
+        ringtoneRef.current.loop = true;
+        const playPromise = ringtoneRef.current.play();
+        playPromisesRef.current.push({
+          promise: playPromise,
+          settled: false
+        });
+        playPromise.catch(e => {
+          console.error("Ringtone error:", e);
+          setError('Failed to play ringtone');
+        });
+        setRingtonePlaying(true);
+      } catch (error) {
+        console.error("Error creating ringtone:", error);
+        setError('Failed to play ringtone');
+      }
     }
   }, [interactionDone]);
 
@@ -93,11 +95,14 @@ export default function CallScreen() {
   const handleCallAccepted = useCallback(() => {
     setCallStatus('accepted');
     stopRingtone();
+    setError(null);
   }, [stopRingtone]);
 
   const endCall = useCallback(() => {
+    const socketInstance = getSocket();
+    
     if (inCommingCallId) {
-      socket.emit('end-call', { 
+      socketInstance.emit('end-call', { 
         callId: inCommingCallId,
         targetId: callRemoteUserId 
       });
@@ -112,6 +117,7 @@ export default function CallScreen() {
     }
     
     setPage(true);
+    setError(null);
   }, [inCommingCallId, callRemoteUserId, setPage]);
 
   const stopMediaTracks = useCallback(() => {
@@ -148,11 +154,22 @@ export default function CallScreen() {
 
       pc.onicecandidate = ({ candidate }) => {
         if (candidate) {
-          socket.emit('webrtc-signal', {
+          const socketInstance = getSocket();
+          socketInstance.emit('webrtc-signal', {
             callId: inCommingCallId,
             signal: { type: 'candidate', candidate },
             targetId: callRemoteUserId
           });
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+          console.log('ICE connection state:', pc.iceConnectionState);
+          if (isMountedRef.current) {
+            setError('Connection lost. Please try again.');
+            setCallStatus('failed');
+          }
         }
       };
 
@@ -163,6 +180,7 @@ export default function CallScreen() {
           setCallStatus('connected');
           stopRingtone();
           clearTimeout(callTimeoutRef.current); 
+          setError(null);
         }
       };
 
@@ -182,7 +200,8 @@ export default function CallScreen() {
         const answer = await pcRef.current.createAnswer();
         await pcRef.current.setLocalDescription(answer);
         
-        socket.emit('webrtc-signal', {
+        const socketInstance = getSocket();
+        socketInstance.emit('webrtc-signal', {
           callId: inCommingCallId,
           signal: { type: 'answer', sdp: answer.sdp },
           targetId: callRemoteUserId
@@ -196,11 +215,14 @@ export default function CallScreen() {
       }
     } catch (err) {
       console.error("Signal handling error:", err);
+      setError('Failed to establish connection. Please try again.');
+      setCallStatus('failed');
     }
   }, [inCommingCallId, callRemoteUserId]);
 
   useEffect(() => {
     isMountedRef.current = true;
+    const socketInstance = getSocket();
 
     if (!inCommingCallId) return;
 
@@ -223,10 +245,16 @@ export default function CallScreen() {
           pc.addTrack(track, stream);
         });
 
-        socket.on('webrtc-signal', handleSignal);
+        socketInstance.on('webrtc-signal', handleSignal);
 
-        socket.on('call-ended', () => {
+        socketInstance.on('call-ended', () => {
           endCall();
+        });
+
+        socketInstance.on('call-error', (data) => {
+          console.error('Call error:', data.message);
+          setError(data.message);
+          setCallStatus('failed');
         });
 
         if (isCaller) {
@@ -236,7 +264,7 @@ export default function CallScreen() {
           });
           await pc.setLocalDescription(offer);
           
-          socket.emit('webrtc-signal', {
+          socketInstance.emit('webrtc-signal', {
             callId: inCommingCallId,
             signal: { type: 'offer', sdp: offer.sdp },
             targetId: callRemoteUserId
@@ -247,7 +275,16 @@ export default function CallScreen() {
 
       } catch (error) {
         console.error("Call initialization error:", error);
-        if (isMountedRef.current) setCallStatus('failed');
+        if (isMountedRef.current) {
+          setCallStatus('failed');
+          if (error.name === 'NotAllowedError') {
+            setError('Camera/microphone access denied. Please check permissions.');
+          } else if (error.name === 'NotFoundError') {
+            setError('Camera/microphone not found. Please check your device.');
+          } else {
+            setError('Failed to access camera/microphone. Please try again.');
+          }
+        }
         stopRingtone();
         stopMediaTracks();
       }
@@ -255,22 +292,24 @@ export default function CallScreen() {
 
     initCall();
 
-    socket.on('call-accepted', handleCallAccepted);
-    socket.on('call-rejected', () => endCall());
+    socketInstance.on('call-accepted', handleCallAccepted);
+    socketInstance.on('call-rejected', () => endCall());
 
     callTimeoutRef.current = setTimeout(() => {
       if (callStatus !== 'connected') {
         console.log("Call timeout - ending call");
+        setError('Call timeout. Please try again.');
         endCall(); 
       }
     }, 60000);
 
     return () => {
       isMountedRef.current = false;
-      socket.off('call-accepted', handleCallAccepted);
-      socket.off('call-rejected');
-      socket.off('webrtc-signal');
-      socket.off('call-ended');
+      socketInstance.off('call-accepted', handleCallAccepted);
+      socketInstance.off('call-rejected');
+      socketInstance.off('webrtc-signal');
+      socketInstance.off('call-ended');
+      socketInstance.off('call-error');
 
       if (pcRef.current) {
         pcRef.current.close();
@@ -294,7 +333,8 @@ export default function CallScreen() {
     handleCallAccepted, 
     endCall,
     createPeerConnection,
-    handleSignal
+    handleSignal,
+    callStatus
   ]);
 
   const handleInteraction = () => {
@@ -339,6 +379,7 @@ export default function CallScreen() {
         }
       } catch (error) {
         console.error('Error fetching details:', error);
+        setError('Failed to load user details');
       }
     };
 
@@ -366,11 +407,17 @@ export default function CallScreen() {
         </div>
       )}
 
+      {error && (
+        <div className="absolute top-4 left-4 text-white bg-red-600/80 px-4 py-2 rounded shadow flex items-center gap-2">
+          <span className="text-sm font-semibold">{error}</span>
+        </div>
+      )}
+
       {!interactionDone && isCaller && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
           <div className="text-center p-6 bg-black/50 rounded-lg">
             <p className="text-xl mb-4">Tap anywhere to enable sound</p>
-            <p className="text-yellow-400 animate-pulse">Calling to {state?.name}...</p>
+            <p className="text-yellow-400 animate-pulse">Calling to {state?.name || 'User'}...</p>
           </div>
         </div>
       )}

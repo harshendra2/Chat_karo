@@ -8,16 +8,9 @@ import { useRouter } from "next/navigation";
 import Sidebar from "../../../components/Sidebar/sidebar";
 import { PageContext } from "../../../context/PageContext";
 import IncommingCall from "../../../components/IncommingCall/IncommingCall";
-import io from 'socket.io-client';
+import { getSocket } from '../../../utils/socketManager';
 import ProtectedRoute from "../../../components/ProtectedRoute";
-import SocketUrl from '../../../Service/SocketUrl';
 import Background from "../../../assets/Background.jpg";
-
-const socket = io(SocketUrl, {
-  reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-});
 
 export default function DashBoard() {
   const [isMobile, setIsMobile] = useState(false);
@@ -52,42 +45,56 @@ export default function DashBoard() {
 
   useEffect(() => {
     const currentUserId = Cookies.get("UserId");
+    const socketInstance = getSocket();
     
-    socket.emit('register', currentUserId);
+    socketInstance.emit('register', currentUserId);
 
-    socket.on('incoming-call', (data) => {
+    socketInstance.on('incoming-call', (data) => {
+      console.log('Incoming call received:', data);
       setIncomingCall(data);
       setPage(false);
       SetCallRemoteUserId(data?.callerId);
       SetIsCaller(false);
     });
 
-    socket.on('call-rejected', () => {
+    socketInstance.on('call-rejected', () => {
+      console.log('Call rejected');
       setPage(true);
       SetIncommingCallId(null);
     });
 
-    socket.on('call-ended', () => {
+    socketInstance.on('call-ended', () => {
+      console.log('Call ended');
+      setPage(true);
+      SetIncommingCallId(null);
+    });
+
+    socketInstance.on('call-error', (data) => {
+      console.error('Call error:', data.message);
       setPage(true);
       SetIncommingCallId(null);
     });
 
     return () => {
-      socket.off('incoming-call');
-      socket.off('call-rejected');
-      socket.off('call-ended');
+      socketInstance.off('incoming-call');
+      socketInstance.off('call-rejected');
+      socketInstance.off('call-ended');
+      socketInstance.off('call-error');
     };
-  }, []);
+  }, [setPage, SetCallRemoteUserId, SetIsCaller, SetIncommingCallId]);
 
   const handleCallInitiate = () => {
     const currentUserId = Cookies.get("UserId");
     const callId = `${currentUserId}-${UserId}-${Date.now()}`; 
     
+    console.log('Initiating call:', { callId, callerId: currentUserId, receiverId: UserId });
+    
     SetIncommingCallId(callId);
     SetCallRemoteUserId(UserId);
     SetIsCaller(true);
     
-    socket.emit('initiate-call', {
+    const socketInstance = getSocket();
+    socketInstance.emit('initiate-call', {
       callerId: currentUserId,
       receiverId: UserId,
       callId: callId
@@ -97,7 +104,9 @@ export default function DashBoard() {
   };
 
   const handleAcceptCall = () => {
-    socket.emit('accept-call', { 
+    console.log('Accepting call:', incomingCall?.callId);
+    const socketInstance = getSocket();
+    socketInstance.emit('accept-call', { 
       callId: incomingCall?.callId,
       receiverId: incomingCall?.callerId
     });
@@ -106,7 +115,9 @@ export default function DashBoard() {
   };
 
   const handleRejectCall = () => {
-    socket.emit('reject-call', { 
+    console.log('Rejecting call:', incomingCall?.callId);
+    const socketInstance = getSocket();
+    socketInstance.emit('reject-call', { 
       callId: incomingCall?.callId,
       receiverId: incomingCall?.callerId
     });

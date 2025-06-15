@@ -13,15 +13,13 @@ import BaseUrl from "../../Service/BaseUrl";
 import Cookies from "js-cookie";
 import { PageContext } from "../../context/PageContext";
 import { AuthContext } from "../../context/AuthContext";
-import {LoginAuthContext}from "../../context/ProtectedContext"
 import Metas from "../MetaIcons/Meta";
 import SessionTransfer from "../SessionTransfer/SessionTransfer";
 
 export default function Sidebar({showChat, setShowChat}) {
   const router = useRouter();
   const { UserId, SetUserId,Meta,SetMeta } = useContext(PageContext);
-  const {isAuthenticated, setIsAuthenticated } = useContext(AuthContext);
-  const {LoginsetIsAuthenticated} = useContext(LoginAuthContext);
+  const { setIsAuthenticated } = useContext(AuthContext);
 
   const [state, SetState] = useState(null);
   const [search, Setsearch] = useState("");
@@ -81,8 +79,7 @@ export default function Sidebar({showChat, setShowChat}) {
   function HandleLogout() {
     Cookies.remove("currentUser");
     Cookies.remove("UserId");
-    setIsAuthenticated(false)
-    LoginsetIsAuthenticated(false)
+    setIsAuthenticated(false);
     router.push("/login");
   }
 
