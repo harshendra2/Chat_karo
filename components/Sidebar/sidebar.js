@@ -1,3 +1,4 @@
+"use client"
 import "./Sidebar.css";
 import Image from "next/image";
 import { useEffect, useState, useContext } from "react";
@@ -6,16 +7,19 @@ import UserList from "../UserList/userlist";
 import { useRouter } from "next/navigation";
 import { IoMdLogOut } from "react-icons/io";
 import { FiEdit } from "react-icons/fi";
+import { FaQrcode } from "react-icons/fa";
 import Axios, { AxiosError } from "axios";
 import BaseUrl from "../../Service/BaseUrl";
 import Cookies from "js-cookie";
 import { PageContext } from "../../context/PageContext";
 import { AuthContext } from "../../context/AuthContext";
 import {LoginAuthContext}from "../../context/ProtectedContext"
+import Metas from "../MetaIcons/Meta";
+import SessionTransfer from "../SessionTransfer/SessionTransfer";
 
 export default function Sidebar({showChat, setShowChat}) {
   const router = useRouter();
-  const { UserId, SetUserId } = useContext(PageContext);
+  const { UserId, SetUserId,Meta,SetMeta } = useContext(PageContext);
   const {isAuthenticated, setIsAuthenticated } = useContext(AuthContext);
   const {LoginsetIsAuthenticated} = useContext(LoginAuthContext);
 
@@ -23,6 +27,11 @@ export default function Sidebar({showChat, setShowChat}) {
   const [search, Setsearch] = useState("");
   const [AllUser, SetAllUser] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [Scanner,SetScanner]=useState(false);
+
+  function onClose(){
+    SetScanner((prev)=>!prev);
+  }
 
   useEffect(() => {
     const GetDetails = async () => {
@@ -178,7 +187,6 @@ export default function Sidebar({showChat, setShowChat}) {
                 key={index} 
                 onClick={() => {
                   Search();
-                  SetUserId(temp?._id);
                   if (typeof window !== 'undefined' && window.innerWidth < 768) {
                     setShowChat(true);
                   }
@@ -188,19 +196,31 @@ export default function Sidebar({showChat, setShowChat}) {
               </div>
             ))}
         </div>
-
+     
+  {Scanner?(<SessionTransfer onClose={onClose}/>):null}
         {/* Bottom section - non-scrollable */}
-        <div className="flex-shrink-0 px-2 pb-4">
+        <div className="flex-shrink-2 px-2 pb-4 ">
           <div className="h-[1px] w-[98%] bg-gradient-to-r from-transparent via-white/50 to-transparent"></div>
-          <div className="flex items-center justify-center border border-white/20 rounded h-9 cursor-pointer mt-2">
+         <div className="flex flex-row items-center justify-center gap-1">
+           <div className="flex items-center justify-center border border-white/20 rounded h-9 w-[94%] cursor-pointer mt-2">
             <button
               className="flex flex-row gap-3 justify-center cursor-pointer w-full h-full items-center"
               onClick={HandleLogout}
             >
-              <IoMdLogOut />
+              <IoMdLogOut className="text-white" />
               <p className="text-sm text-white">Log Out</p>
             </button>
+            {typeof window !== 'undefined' && window.innerWidth < 768?(
+            <div className="relative -mt-50 ml-5 corsor-pointer" onClick={()=>{SetMeta(true),setShowChat(true);}}>
+              <Metas/>
+              </div>
+            ):null}
           </div>
+           <div className="flex items-center justify-center border border-white/20 rounded h-9 w-9 cursor-pointer mt-2">
+           <button onClick={onClose} ><FaQrcode width={20} color="white"/></button>
+           </div>
+          </div>
+           
         </div>
       </div>
     </div>

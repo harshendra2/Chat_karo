@@ -12,9 +12,10 @@ export const PageProvider = ({ children }) => {
   const [inCommingCallId, SetIncommingCallId] = useState("");
   const [callRemoteUserId, SetCallRemoteUserId] = useState("");
   const [isCaller, SetIsCaller] = useState(false);
+  const [Meta,SetMeta]=useState(false)
 
   return (
-    <PageContext.Provider value={{ page, setPage,UserId,SetUserId,ChatPage,SetChatPage,inCommingCallId,SetIncommingCallId,callRemoteUserId, SetCallRemoteUserId,isCaller, SetIsCaller}}>
+    <PageContext.Provider value={{ page, setPage,UserId,SetUserId,ChatPage,SetChatPage,inCommingCallId,SetIncommingCallId,callRemoteUserId, SetCallRemoteUserId,isCaller, SetIsCaller,Meta,SetMeta}}>
       {children}
     </PageContext.Provider>
   );

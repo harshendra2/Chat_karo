@@ -11,6 +11,7 @@ import IncommingCall from "../../../components/IncommingCall/IncommingCall";
 import io from 'socket.io-client';
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import SocketUrl from '../../../Service/SocketUrl';
+import Background from "../../../assets/Background.jpg";
 
 const socket = io(SocketUrl, {
   reconnection: true,
@@ -117,9 +118,16 @@ export default function DashBoard() {
     <ProtectedRoute>
       <div>
         {page ? (
-          <div className="h-screen flex flex-row" style={{
-            background: "linear-gradient(157deg, rgba(2, 0, 36, 1) 27%, rgba(26, 26, 186, 1) 52%, rgba(0, 212, 255, 1) 100%)"
-          }}> 
+          <div 
+          
+           className="h-screen flex flex-row"
+  style={{
+    backgroundImage: `url(${Background.src})`,
+    backgroundSize: 'cover',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center',
+  }}
+         > 
             {(!isMobile || !showChat) && (
               <div className={`${isMobile ? 'w-full' : 'w-[20%]'}`}>
                 <Sidebar showChat={showChat} setShowChat={setShowChat} />

@@ -1,0 +1,6 @@
+.fixed-meta {
+  position:relative;
+  right: 20px;
+  bottom: 70px; /* Adjust this based on your logout button height */
+  z-index: 10;
+}
