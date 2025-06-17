@@ -9,7 +9,7 @@ import { PageContext } from '../../context/PageContext';
 import Axios from 'axios';
 import BaseUrl from '../../Service/BaseUrl';
 import Cookies from 'js-cookie';
-import Meta from '../MetaIcons/meta';
+import Metas from '../MetaIcons/Meta';
 
 export default function MetaChat({showChat, setShowChat }) {
   const { setPage, UserId, ChatPage } = useContext(PageContext);
@@ -100,7 +100,7 @@ export default function MetaChat({showChat, setShowChat }) {
       {/* Header */}
       <div className="flex-shrink-0 flex items-center justify-between gap-4 border border-white/20 rounded px-6 py-4 w-[98%] h-[80px] bg-black/10 mx-auto mt-2">
         <div className="flex items-center gap-4">
-          <Meta className="h-16 w-16"/>
+          <Metas className="h-16 w-16"/>
             
           <div className="flex flex-col justify-center p-0">
             <h2 className="text-white text-md font-semibold">
