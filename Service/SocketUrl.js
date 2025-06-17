@@ -1,4 +1,4 @@
-const SocketUrl = 'http://13.233.163.118';
+const SocketUrl = 'https://chat-karo-server.onrender.com';
 
 // const SocketUrl = 'http://localhost:4000';
 
