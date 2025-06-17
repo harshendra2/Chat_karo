@@ -13,7 +13,7 @@ import Cookies from "js-cookie";
 import { PageContext } from "../../context/PageContext";
 import { AuthContext } from "../../context/AuthContext";
 import SessionTransfer from "../SessionTransfer/SessionTransfer";
-import Metas from "../MetaIcons/meta";
+import Metas from "../MetaIcons/Meta";
 
 export default function Sidebar({showChat, setShowChat}) {
   const router = useRouter();

@@ -20,7 +20,7 @@ import { IoArrowBack } from 'react-icons/io5';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import MetaChat from '../MetaAi/Metaai';
-import Metas from '../MetaIcons/meta';
+import Metas from '../MetaIcons/Meta';
 
 
 export default function Chat({ handleCallInitiate, showChat, setShowChat }) {
