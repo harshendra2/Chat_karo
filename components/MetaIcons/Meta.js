@@ -1,7 +1,7 @@
 "use client"
 import { LuSparkles } from "react-icons/lu";
 
-export default function Meta(){
+export default function Metas(){
 
  const boxStyle = {
     position: 'relative',
