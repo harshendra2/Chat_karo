@@ -1,5 +1,4 @@
 "use client"
-import "./Sidebar.css";
 import Image from "next/image";
 import { useEffect, useState, useContext } from "react";
 import logo from "../../assets/logos-removebg-preview.png";
