@@ -74,7 +74,7 @@ export default function Chat({ handleCallInitiate, showChat, setShowChat }) {
 
     setSuggestionLoading(true);
     try {
-      const response = await fetch("http://localhost:4000/api/get-suggestions", {
+      const response = await fetch(`${BaseUrl}get-suggestions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
